@@ -12,14 +12,16 @@ buildscript {
     }
 }
 
-rootProject.allprojects {
+allprojects {
     repositories {
         google()
         mavenCentral()
     }
 }
 
-apply plugin: 'com.android.library'
+plugins {
+    id("com.android.library")
+}
 
 android {
     namespace = "io.flutter.plugins.googlemaps"
@@ -33,7 +35,7 @@ android {
     lint {
         checkAllWarnings = true
         warningsAsErrors = true
-        disable 'AndroidGradlePluginVersion', 'InvalidPackage', 'GradleDependency', 'NewerVersionAvailable'
+        disable.addAll(setOf("AndroidGradlePluginVersion", "InvalidPackage", "GradleDependency", "NewerVersionAvailable"))
     }
 
     dependencies {
@@ -55,19 +57,21 @@ android {
     }
 
     testOptions {
-        unitTests.includeAndroidResources = true
-        unitTests.returnDefaultValues = true
-        unitTests.all {
-            testLogging {
-               events "passed", "skipped", "failed", "standardOut", "standardError"
-               outputs.upToDateWhen {false}
-               showStandardStreams = true
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+            all {
+                it.outputs.upToDateWhen { false }
+                it.testLogging {
+                    events("passed", "skipped", "failed", "standardOut", "standardError")
+                    showStandardStreams = true
+                }
+                // The org.gradle.jvmargs property that may be set in gradle.properties does not impact
+                // the Java heap size when running the Android unit tests. The following property here
+                // sets the heap size to a size large enough to run the robolectric tests across
+                // multiple SDK levels.
+                it.jvmArgs("-Xmx4G")
             }
-            // The org.gradle.jvmargs property that may be set in gradle.properties does not impact
-            // the Java heap size when running the Android unit tests. The following property here
-            // sets the heap size to a size large enough to run the robolectric tests across
-            // multiple SDK levels.
-            jvmArgs "-Xmx4G"
         }
     }
 }
