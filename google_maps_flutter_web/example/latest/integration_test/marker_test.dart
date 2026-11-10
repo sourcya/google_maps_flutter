@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:js_interop';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps/google_maps.dart' as gmaps;
@@ -102,6 +103,38 @@ void main() {
       expect(marker.draggable, isTrue);
       expect(marker.position?.lat, equals(42));
       expect(marker.position?.lng, equals(54));
+    });
+
+    testWidgets('update with the same icon moves the marker without resetting its icon', (
+      WidgetTester tester,
+    ) async {
+      final controller = LegacyMarkerController(marker: marker);
+      controller.update(
+        gmaps.MarkerOptions()
+          ..icon = 'icon_a.png'.toJS
+          ..position = gmaps.LatLng(42, 54),
+      );
+      // Stands in for the rendered icon: re-applying the icon would replace it.
+      marker.icon = 'rendered.png'.toJS;
+
+      controller.update(
+        gmaps.MarkerOptions()
+          ..icon = 'icon_a.png'.toJS
+          ..position = gmaps.LatLng(43, 55),
+      );
+
+      expect((marker.icon! as JSString).toDart, 'rendered.png');
+      expect(marker.position?.lat, equals(43));
+      expect(marker.position?.lng, equals(55));
+    });
+
+    testWidgets('update with a different icon applies it', (WidgetTester tester) async {
+      final controller = LegacyMarkerController(marker: marker);
+      controller.update(gmaps.MarkerOptions()..icon = 'icon_a.png'.toJS);
+
+      controller.update(gmaps.MarkerOptions()..icon = 'icon_b.png'.toJS);
+
+      expect((marker.icon! as JSString).toDart, 'icon_b.png');
     });
 
     testWidgets('infoWindow null, showInfoWindow.', (WidgetTester tester) async {

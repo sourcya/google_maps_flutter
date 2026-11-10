@@ -192,10 +192,28 @@ class LegacyMarkerController extends MarkerController<gmaps.Marker, gmaps.Marker
     }
   }
 
+  /// Identifies the icon last applied, so an update with the same image leaves it in place.
+  String? _appliedIconKey;
+
   @override
   void update(gmaps.MarkerOptions options, {web.HTMLElement? newInfoWindowContent}) {
     assert(_marker != null, 'Cannot `update` Marker after calling `remove`.');
-    _marker!.options = options;
+    final gmaps.Marker marker = _marker!;
+    final String? iconKey = _iconKey(options.icon);
+    if (iconKey != null && iconKey == _appliedIconKey) {
+      // Setting `options` re-renders the icon even when it is the same image,
+      // which makes a marker that moves every frame blink.
+      marker
+        ..position = options.position
+        ..zIndex = options.zIndex
+        ..visible = options.visible ?? true
+        ..opacity = options.opacity
+        ..title = options.title
+        ..draggable = options.draggable;
+    } else {
+      marker.options = options;
+      _appliedIconKey = iconKey;
+    }
 
     if (_infoWindow != null && newInfoWindowContent != null) {
       _infoWindow.content = newInfoWindowContent;
@@ -331,4 +349,18 @@ class AdvancedMarkerController
 
   @override
   void setMap(gmaps.Map map) => _marker?.map = map;
+}
+
+/// URL, size and anchor of a legacy marker icon, or null when it can't be compared.
+String? _iconKey(JSAny? icon) {
+  if (icon == null) {
+    return null;
+  }
+  if (icon.isA<JSString>()) {
+    return (icon as JSString).toDart;
+  }
+  final gmIcon = icon as gmaps.Icon;
+  final gmaps.Size? size = gmIcon.scaledSize;
+  final gmaps.Point? anchor = gmIcon.anchor;
+  return '${gmIcon.url}|${size?.width}x${size?.height}|${anchor?.x},${anchor?.y}';
 }

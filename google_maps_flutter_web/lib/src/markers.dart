@@ -130,9 +130,14 @@ abstract class MarkersController<T extends Object, O> extends GeometryController
     await Future.wait(markersToChange.map(_changeMarker));
   }
 
+  /// Latest change per marker; an older change whose icon took longer to build is dropped.
+  final Map<MarkerId, int> _changeRequests = <MarkerId, int>{};
+
   Future<void> _changeMarker(Marker marker) async {
     final MarkerController<T, O>? markerController = _markerIdToController[marker.markerId];
     if (markerController != null) {
+      final int request = (_changeRequests[marker.markerId] ?? 0) + 1;
+      _changeRequests[marker.markerId] = request;
       final ClusterManagerId? oldClusterManagerId = markerController.clusterManagerId;
       final ClusterManagerId? newClusterManagerId = marker.clusterManagerId;
 
@@ -152,6 +157,10 @@ abstract class MarkersController<T extends Object, O> extends GeometryController
           markerController.marker,
           isAdvancedMarkerContentUpdateRequired: isAdvancedMarkerContentUpdateRequired,
         );
+        if (_changeRequests[marker.markerId] != request ||
+            _markerIdToController[marker.markerId] != markerController) {
+          return;
+        }
         final gmaps.InfoWindowOptions? infoWindow = _infoWindowOptionsFromMarker(marker);
         final infoWindowContent = infoWindow?.content as web.HTMLElement?;
         if (markerController is AdvancedMarkerController) {
@@ -214,6 +223,7 @@ abstract class MarkersController<T extends Object, O> extends GeometryController
       markerController.value?.remove();
       _markerIdToController.remove(markerController.key);
       _contentConfigurationByMarkerId.remove(markerController.key);
+      _changeRequests.remove(markerController.key);
     }
   }
 
@@ -228,6 +238,7 @@ abstract class MarkersController<T extends Object, O> extends GeometryController
     markerController?.remove();
     _markerIdToController.remove(markerId);
     _contentConfigurationByMarkerId.remove(markerId);
+    _changeRequests.remove(markerId);
   }
 
   // InfoWindow...

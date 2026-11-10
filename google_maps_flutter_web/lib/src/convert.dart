@@ -15,13 +15,22 @@ final gmaps.LatLngBounds _nullGmapsLatLngBounds = gmaps.LatLngBounds(
 web.TrustedTypePolicy? _gmapsTrustedTypePolicy;
 
 // A cache for image size Futures to reduce redundant image fetch requests.
-// This cache should be always cleaned up after marker updates are processed.
 final Map<String, Future<Size?>> _bitmapSizeFutureCache = <String, Future<Size?>>{};
 
-// A cache for blob URLs of bitmaps to avoid creating a new blob URL for the
-// same bitmap instances. This cache should be always cleaned up after marker
-// updates are processed.
-final Map<int, String> _bitmapBlobUrlCache = <int, String>{};
+// Blob URL of each bitmap byte array, kept while the array is alive. A stable
+// URL lets an icon that is re-sent unchanged (a moving marker) reuse its
+// rotated image and size instead of being redrawn, which made it blink.
+final Expando<String> _bitmapBlobUrls = Expando<String>('bitmapBlobUrl');
+
+String _blobUrlFor(Uint8List bytes) {
+  return _bitmapBlobUrls[bytes] ??= web.URL.createObjectURL(
+    web.Blob(<JSUint8Array>[bytes.toJS].toJS) as JSObject,
+  );
+}
+
+// Bitmap sizes are keyed by blob URL, which no longer changes per update, so
+// the cache is only trimmed to this size instead of cleared after each update.
+const int _maxBitmapSizeCacheSize = 200;
 
 // Rotated legacy marker icons, keyed by the icon and rotation they were made
 // from. Unlike the caches above, this one is kept across marker updates, since
@@ -481,8 +490,9 @@ Future<Size?> _fetchBitmapSize(String url) async {
 /// that memory usage is optimized by removing completed or outdated cache
 /// entries.
 void _cleanUpBitmapConversionCaches() {
-  _bitmapSizeFutureCache.clear();
-  _bitmapBlobUrlCache.clear();
+  while (_bitmapSizeFutureCache.length > _maxBitmapSizeCacheSize) {
+    _bitmapSizeFutureCache.remove(_bitmapSizeFutureCache.keys.first);
+  }
 }
 
 Future<web.Node?> _advancedMarkerIconFromPinConfig(
@@ -539,13 +549,7 @@ Future<web.Node?> _advancedMarkerIconFromMapBitmap(
   required Offset anchor,
 }) async {
   final String url = switch (bitmap) {
-    (final BytesMapBitmap bytesMapBitmap) => _bitmapBlobUrlCache.putIfAbsent(
-      bytesMapBitmap.byteData.hashCode,
-      () {
-        final blob = web.Blob(<JSUint8Array>[bytesMapBitmap.byteData.toJS].toJS);
-        return web.URL.createObjectURL(blob as JSObject);
-      },
-    ),
+    (final BytesMapBitmap bytesMapBitmap) => _blobUrlFor(bytesMapBitmap.byteData),
     (final AssetMapBitmap assetMapBitmap) => ui_web.assetManager.getAssetUrl(
       assetMapBitmap.assetName,
     ),
@@ -790,15 +794,7 @@ Future<gmaps.Icon?> _gmUnrotatedIconFromBitmapDescriptor(
 
   if (bitmapDescriptor is MapBitmap) {
     final String url = switch (bitmapDescriptor) {
-      (final BytesMapBitmap bytesMapBitmap) => _bitmapBlobUrlCache.putIfAbsent(
-        bytesMapBitmap.byteData.hashCode,
-        () {
-          // TODO(ditman): Improve this conversion
-          // See https://github.com/dart-lang/web/issues/180
-          final blob = web.Blob(<JSUint8Array>[bytesMapBitmap.byteData.toJS].toJS);
-          return web.URL.createObjectURL(blob as JSObject);
-        },
-      ),
+      (final BytesMapBitmap bytesMapBitmap) => _blobUrlFor(bytesMapBitmap.byteData),
       (final AssetMapBitmap assetMapBitmap) => ui_web.assetManager.getAssetUrl(
         assetMapBitmap.assetName,
       ),
@@ -1179,13 +1175,7 @@ void _applyCameraUpdate(gmaps.Map map, CameraUpdate update) {
 /// Converts a [MapBitmap] into a URL.
 String urlFromMapBitmap(MapBitmap mapBitmap) {
   return switch (mapBitmap) {
-    (final BytesMapBitmap bytesMapBitmap) => _bitmapBlobUrlCache.putIfAbsent(
-      bytesMapBitmap.byteData.hashCode,
-      () {
-        final blob = web.Blob(<JSUint8Array>[bytesMapBitmap.byteData.toJS].toJS);
-        return web.URL.createObjectURL(blob as JSObject);
-      },
-    ),
+    (final BytesMapBitmap bytesMapBitmap) => _blobUrlFor(bytesMapBitmap.byteData),
     (final AssetMapBitmap assetMapBitmap) => ui_web.assetManager.getAssetUrl(
       assetMapBitmap.assetName,
     ),
