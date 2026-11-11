@@ -24,9 +24,9 @@ dependencies:
   flutter_plugin_android_lifecycle: ^2.0.1
   google_maps_flutter_platform_interface:
     git:
-      url: https://github.com/basemosama/packages.git
-      path: packages/google_maps_flutter/google_maps_flutter_platform_interface
-      ref: feat_smooth_marker_updates
+      url: https://github.com/sourcya/google_maps_flutter.git
+      path: google_maps_flutter_platform_interface
+      ref: main
   meta: ^1.10.0
   stream_transform: ^2.0.0
 
