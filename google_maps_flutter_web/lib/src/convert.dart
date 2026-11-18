@@ -22,10 +22,24 @@ final Map<String, Future<Size?>> _bitmapSizeFutureCache = <String, Future<Size?>
 // rotated image and size instead of being redrawn, which made it blink.
 final Expando<String> _bitmapBlobUrls = Expando<String>('bitmapBlobUrl');
 
+// Revokes a bitmap's blob URL once its byte array is garbage collected. A blob
+// URL keeps its data alive until it is revoked, so without this every icon ever
+// shown (thousands for a large fleet that re-sends labels) stayed in memory for
+// the life of the page. The bytes are only collected once no marker or icon
+// refers to them, so a URL still in use is never revoked.
+final Finalizer<String> _bitmapBlobUrlFinalizer = Finalizer<String>(web.URL.revokeObjectURL);
+
 String _blobUrlFor(Uint8List bytes) {
-  return _bitmapBlobUrls[bytes] ??= web.URL.createObjectURL(
+  final String? existing = _bitmapBlobUrls[bytes];
+  if (existing != null) {
+    return existing;
+  }
+  final String url = web.URL.createObjectURL(
     web.Blob(<JSUint8Array>[bytes.toJS].toJS) as JSObject,
   );
+  _bitmapBlobUrls[bytes] = url;
+  _bitmapBlobUrlFinalizer.attach(bytes, url);
+  return url;
 }
 
 // Bitmap sizes are keyed by blob URL, which no longer changes per update, so
@@ -606,18 +620,12 @@ Future<web.Node?> _advancedMarkerIconFromBytes(
   required double rotation,
   required Offset anchor,
 }) async {
-  // Grab the bytes, and put them into a blob.
+  // Grab the bytes, and put them into a blob (revoked when the bytes are collected).
   final bytes = iconConfig[1]! as List<int>;
-  // Create a Blob from bytes, but let the browser figure out the encoding.
-  final web.Blob blob;
 
   assert(bytes is Uint8List, 'The bytes for a BitmapDescriptor icon must be a Uint8List');
 
-  // TODO(ditman): Improve this conversion
-  // See https://github.com/dart-lang/web/issues/180
-  blob = web.Blob(<JSUint8Array>[(bytes as Uint8List).toJS].toJS);
-
-  final icon = web.HTMLImageElement()..src = web.URL.createObjectURL(blob as JSObject);
+  final icon = web.HTMLImageElement()..src = _blobUrlFor(bytes as Uint8List);
 
   final gmaps.Size? size = _gmSizeFromIconConfig(iconConfig, 2);
   _setIconStyle(
@@ -833,18 +841,12 @@ Future<gmaps.Icon?> _gmUnrotatedIconFromBitmapDescriptor(
         ..scaledSize = size;
     }
   } else if (iconConfig[0] == 'fromBytes') {
-    // Grab the bytes, and put them into a blob
+    // Grab the bytes, and put them into a blob (revoked when the bytes are collected)
     final bytes = iconConfig[1]! as List<int>;
-    // Create a Blob from bytes, but let the browser figure out the encoding
-    final web.Blob blob;
 
     assert(bytes is Uint8List, 'The bytes for a BitmapDescriptor icon must be a Uint8List');
 
-    // TODO(ditman): Improve this conversion
-    // See https://github.com/dart-lang/web/issues/180
-    blob = web.Blob(<JSUint8Array>[(bytes as Uint8List).toJS].toJS);
-
-    icon = gmaps.Icon()..url = web.URL.createObjectURL(blob as JSObject);
+    icon = gmaps.Icon()..url = _blobUrlFor(bytes as Uint8List);
 
     final gmaps.Size? size = _gmSizeFromIconConfig(iconConfig, 2);
     if (size != null) {

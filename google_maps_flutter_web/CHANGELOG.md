@@ -1,5 +1,6 @@
 ## NEXT
 
+* Revokes a bitmap icon's blob URL when its bytes are garbage collected, and shares one URL per byte array for every icon path. Blob URLs were never revoked, so each icon shown stayed in memory for the life of the page.
 * Implements `getClusters` and `onClusterManagerUpdate`.
 * Fixes clearing the map style, which previously kept the last style.
 * Adds support for `Marker.rotation` with image icons.
