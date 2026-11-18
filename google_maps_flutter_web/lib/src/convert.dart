@@ -27,7 +27,10 @@ final Expando<String> _bitmapBlobUrls = Expando<String>('bitmapBlobUrl');
 // shown (thousands for a large fleet that re-sends labels) stayed in memory for
 // the life of the page. The bytes are only collected once no marker or icon
 // refers to them, so a URL still in use is never revoked.
-final Finalizer<String> _bitmapBlobUrlFinalizer = Finalizer<String>(web.URL.revokeObjectURL);
+// A closure, since tear-offs of external interop members are not allowed.
+final Finalizer<String> _bitmapBlobUrlFinalizer = Finalizer<String>(
+  (String url) => web.URL.revokeObjectURL(url),
+);
 
 String _blobUrlFor(Uint8List bytes) {
   final String? existing = _bitmapBlobUrls[bytes];
