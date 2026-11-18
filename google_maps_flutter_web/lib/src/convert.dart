@@ -36,8 +36,10 @@ const int _maxBitmapSizeCacheSize = 200;
 // from. Unlike the caches above, this one is kept across marker updates, since
 // markers are often updated without their icon or rotation changing. It is
 // bounded by [_maxRotatedIconCacheSize], evicting the oldest entries first.
+// Rotations are snapped (see [snapIconRotation]), so a fleet sharing a few icons
+// needs one entry per icon and step, for example 5 icons x 120 steps = 600.
 final Map<String, Future<gmaps.Icon?>> _rotatedIconCache = <String, Future<gmaps.Icon?>>{};
-const int _maxRotatedIconCacheSize = 100;
+const int _maxRotatedIconCacheSize = 1024;
 
 // Converts a [Color] into a valid CSS value #RRGGBB.
 String _getCssColor(Color color) {
@@ -694,10 +696,11 @@ Future<gmaps.Icon?> _gmIconFromBitmapDescriptor(
   double rotation,
 ) async {
   final gmaps.Icon? icon = await _gmUnrotatedIconFromBitmapDescriptor(bitmapDescriptor, anchor);
-  if (icon == null || rotation % 360 == 0) {
+  final double snappedRotation = snapIconRotation(rotation);
+  if (icon == null || snappedRotation == 0) {
     return icon;
   }
-  return await _rotatedGmIcon(icon, rotation) ?? icon;
+  return await _rotatedGmIcon(icon, snappedRotation) ?? icon;
 }
 
 // Returns a copy of [icon] rotated clockwise by [rotation] degrees around its

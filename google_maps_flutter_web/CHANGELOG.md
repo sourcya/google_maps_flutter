@@ -1,5 +1,6 @@
 ## NEXT
 
+* Snaps the rotation of image marker icons to 3 degrees and keeps up to 1024 rotated icons. Each distinct rotation was drawn into its own bitmap, so a fleet with a bearing per vehicle drew one bitmap per marker and thrashed the 100 entry cache; it now draws one per icon and step.
 * Implements `getClusters` and `onClusterManagerUpdate`.
 * Fixes clearing the map style, which previously kept the last style.
 * Adds support for `Marker.rotation` with image icons.
